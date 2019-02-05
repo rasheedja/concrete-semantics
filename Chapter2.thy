@@ -159,10 +159,6 @@ lemma "map f (intersperse a xs) = intersperse (f a) (map f xs)"
 itadd. Tail-recursive means that in the recursive case, itadd needs to call
 itself directly: itadd (Suc m) n = itadd . . .. Prove itadd m n = add m n. *)
 
-fun add :: "nat \<Rightarrow> nat \<Rightarrow> nat" where
-"add 0 n = n" |
-"add (Suc m) n = Suc(add m n)"
-
 lemma add_suc [simp]: "add m (Suc n) = Suc(add m n)"
   apply(induction m)
    apply(auto)
