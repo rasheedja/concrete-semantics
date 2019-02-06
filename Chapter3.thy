@@ -127,4 +127,38 @@ plications as well as evaluate constant subterms. Update all proofs concerned. *
 
 (* See Chapter3AExp.thy *)
 
+(* Exercise 3.5. Define a datatype aexp2 of extended arithmetic expressions
+that has, in addition to the constructors of aexp, a constructor for modelling
+a C-like post-increment operation x++, where x must be a variable. Define an
+evaluation function aval2 :: aexp2 \<Rightarrow> state \<Rightarrow> val \<times> state that returns both
+the value of the expression and the new state. The latter is required because
+post-increment changes the state.
+Extend aexp2 and aval2 with a division operation. Model partiality of
+division by changing the return type of aval2 to (val \<times> state) option. In
+case of division by 0 let aval2 return None. Division on int is the infix div. *)
+
+datatype aexp2 = N int | V vname | Plus aexp2 aexp2 | Increment vname | Divide aexp2 aexp2
+
+(* Used this to learn how to work with the option syntax: 
+https://github.com/gsomix/concrete-semantics-solutions/blob/cf1b864744f80091a1f91a85b14b3d8edf7e0f9f/Chapter3.thy#L144 *)
+
+fun aval2 :: "aexp2 \<Rightarrow> state \<Rightarrow> (val \<times> state) option" where
+"aval2 (N n) s = Some (n, s)" |
+"aval2 (V v) s = Some (s v, s)" |
+"aval2 (Plus a1 a2) s = Option.bind (aval2 a1 s) (\<lambda> (a1val, s1).
+                        Option.bind (aval2 a2 s1) (\<lambda> (a2val, s2).
+                        Some (a1val + a2val, s2)))" |
+"aval2 (Increment x) s = Some ((s x), s (x := (s x) + 1))" |
+"aval2 (Divide a1 a2) s = Option.bind (aval2 a1 s) (\<lambda> (a1val, s1).
+                          Option.bind (aval2 a2 s1) (\<lambda> (a2val, s2).
+                          if a2val = 0 then None else Some ((a1val div a2val), s2)))"
+
+(* Manually checking that everything works as expected *)
+value "aval2 (Plus (Increment ''x'') (Divide (N 10) (V ''x''))) (<''x'' := -1>)"
+value "aval2 (Plus (Increment ''x'') (Divide (N 10) (V ''x''))) (<''x'' := 0>)"
+value "aval2 (Plus (Increment ''x'') (Divide (N 10) (V ''x''))) (<''x'' := 1>)"
+value "aval2 (Plus (Increment ''x'') (Divide (N 10) (V ''x''))) (<''x'' := 2>)"
+value "aval2 (Plus (Increment ''x'') (Divide (N 10) (V ''x''))) (<''x'' := 3>)"
+value "aval2 (Plus (Increment ''x'') (Divide (N 10) (V ''x''))) (<''x'' := 4>)"
+
 end
