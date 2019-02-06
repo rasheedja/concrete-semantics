@@ -137,28 +137,61 @@ Extend aexp2 and aval2 with a division operation. Model partiality of
 division by changing the return type of aval2 to (val \<times> state) option. In
 case of division by 0 let aval2 return None. Division on int is the infix div. *)
 
-datatype aexp2 = N int | V vname | Plus aexp2 aexp2 | Increment vname | Divide aexp2 aexp2
+datatype aexp2 = N2 int | V2 vname | Plus2 aexp2 aexp2 | Increment2 vname | Divide2 aexp2 aexp2
 
 (* Used this to learn how to work with the option syntax: 
 https://github.com/gsomix/concrete-semantics-solutions/blob/cf1b864744f80091a1f91a85b14b3d8edf7e0f9f/Chapter3.thy#L144 *)
 
 fun aval2 :: "aexp2 \<Rightarrow> state \<Rightarrow> (val \<times> state) option" where
-"aval2 (N n) s = Some (n, s)" |
-"aval2 (V v) s = Some (s v, s)" |
-"aval2 (Plus a1 a2) s = Option.bind (aval2 a1 s) (\<lambda> (a1val, s1).
+"aval2 (N2 n) s = Some (n, s)" |
+"aval2 (V2 v) s = Some (s v, s)" |
+"aval2 (Plus2 a1 a2) s = Option.bind (aval2 a1 s) (\<lambda> (a1val, s1).
                         Option.bind (aval2 a2 s1) (\<lambda> (a2val, s2).
                         Some (a1val + a2val, s2)))" |
-"aval2 (Increment x) s = Some ((s x), s (x := (s x) + 1))" |
-"aval2 (Divide a1 a2) s = Option.bind (aval2 a1 s) (\<lambda> (a1val, s1).
+"aval2 (Increment2 x) s = Some ((s x), s (x := (s x) + 1))" |
+"aval2 (Divide2 a1 a2) s = Option.bind (aval2 a1 s) (\<lambda> (a1val, s1).
                           Option.bind (aval2 a2 s1) (\<lambda> (a2val, s2).
                           if a2val = 0 then None else Some ((a1val div a2val), s2)))"
 
 (* Manually checking that everything works as expected *)
-value "aval2 (Plus (Increment ''x'') (Divide (N 10) (V ''x''))) (<''x'' := -1>)"
-value "aval2 (Plus (Increment ''x'') (Divide (N 10) (V ''x''))) (<''x'' := 0>)"
-value "aval2 (Plus (Increment ''x'') (Divide (N 10) (V ''x''))) (<''x'' := 1>)"
-value "aval2 (Plus (Increment ''x'') (Divide (N 10) (V ''x''))) (<''x'' := 2>)"
-value "aval2 (Plus (Increment ''x'') (Divide (N 10) (V ''x''))) (<''x'' := 3>)"
-value "aval2 (Plus (Increment ''x'') (Divide (N 10) (V ''x''))) (<''x'' := 4>)"
+value "aval2 (Plus2 (Increment2 ''x'') (Divide2 (N2 10) (V2 ''x''))) (<''x'' := -1>)"
+value "aval2 (Plus2 (Increment2 ''x'') (Divide2 (N2 10) (V2 ''x''))) (<''x'' := 0>)"
+value "aval2 (Plus2 (Increment2 ''x'') (Divide2 (N2 10) (V2 ''x''))) (<''x'' := 1>)"
+value "aval2 (Plus2 (Increment2 ''x'') (Divide2 (N2 10) (V2 ''x''))) (<''x'' := 2>)"
+value "aval2 (Plus2 (Increment2 ''x'') (Divide2 (N2 10) (V2 ''x''))) (<''x'' := 3>)"
+value "aval2 (Plus2 (Increment2 ''x'') (Divide2 (N2 10) (V2 ''x''))) (<''x'' := 4>)"
+
+(* Exercise 3.6. The following type adds a LET construct to arithmetic ex-
+pressions:
+
+datatype lexp = Nl int | Vl vname | Plusl lexp lexp | LET vname lexp lexp
+
+The LET constructor introduces a local variable: the value of LET x e 1 e 2
+is the value of e 2 in the state where x is bound to the value of e 1 in the
+original state. Define a function lval :: lexp \<Rightarrow> state \<Rightarrow> int that evaluates
+lexp expressions. Remember s(x := i ).
+Define a conversion inline :: lexp \<Rightarrow> aexp. The expression LET x e 1 e 2
+is inlined by substituting the converted form of e 1 for x in the converted form
+of e 2. See Exercise 3.3 for more on substitution. Prove that inline is correct
+w.r.t. evaluation. *)
+
+datatype lexp = Nl int | Vl vname | Plusl lexp lexp | LET vname lexp lexp
+
+fun lval :: "lexp \<Rightarrow> state \<Rightarrow> int" where
+"lval (Nl n) s = n" |
+"lval (Vl v) s = s v" |
+"lval (Plusl a1 a2) s = (lval a1 s) + (lval a2 s)" |
+"lval (LET x e1 e2) s = lval e2 (s(x := (lval e1 s)))"
+
+fun inline :: "lexp \<Rightarrow> aexp" where
+"inline (Nl n) = N n" |
+"inline (Vl v) = V v" |
+"inline (Plusl a1 a2) = Plus (inline a1) (inline a2)" |
+"inline (LET x e1 e2) = subst x (inline e1) (inline e2)"
+
+lemma inline_lexp_equals_aexp: "lval e s = aval (inline e) s"
+  apply(induction e arbitrary: s)
+     apply(simp_all add: subst_lemma)
+  done
 
 end
