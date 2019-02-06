@@ -1,6 +1,6 @@
 theory Chapter3
   imports Main
-          "~~/src/HOL/IMP/AExp"          
+          "~~/src/HOL/IMP/BExp"          
 begin
 
 (* Exercise 3.1. To show that asimp_const really folds all subexpressions of
@@ -194,4 +194,164 @@ lemma inline_lexp_equals_aexp: "lval e s = aval (inline e) s"
      apply(simp_all add: subst_lemma)
   done
 
+(* Exercise 3.7. Define functions Eq, Le :: aexp \<Rightarrow> aexp \<Rightarrow> bexp and prove
+bval (Eq a 1 a 2 ) s = (aval a 1 s = aval a 2 s) and bval (Le a 1 a 2) s =
+(aval a 1 s \<le> aval a 2 s). *)
+
+definition Or :: "bexp \<Rightarrow> bexp \<Rightarrow> bexp" where
+"Or b1 b2 = Not (And (Not b1) (Not b2))"
+
+definition Eq :: "aexp \<Rightarrow> aexp \<Rightarrow> bexp" where
+"Eq b1 b2 = And (Not (Less b1 b2)) (Not (Less b2 b1))"
+
+definition Le :: "aexp \<Rightarrow> aexp \<Rightarrow> bexp" where
+"Le b1 b2 = Or (Eq b1 b2) (Less b1 b2)"
+
+lemma "bval (Eq a1 a2) s = (aval a1 s = aval a2 s)"
+  apply(auto simp add: Eq_def)
+  done
+
+lemma "bval (Le a1 a2) s = (aval a1 s \<le> aval a2 s)"
+  apply(auto simp add: Le_def Or_def Eq_def)
+  done
+
+(* Exercise 3.8. Consider an alternative type of boolean expressions featuring
+a conditional:
+
+datatype ifexp = Bc2 bool | If ifexp ifexp ifexp | Less2 aexp aexp
+
+First define an evaluation function ifval :: ifexp \<Rightarrow> state \<Rightarrow> bool analogously
+to bval. Then define two functions b2ifexp :: bexp \<Rightarrow> ifexp and if2bexp ::
+ifexp \<Rightarrow> bexp and prove their correctness, i.e., that they preserve the value
+of an expression. *)
+
+datatype ifexp = Bc2 bool | If ifexp ifexp ifexp | Less2 aexp aexp
+
+fun ifval :: "ifexp \<Rightarrow> state \<Rightarrow> bool" where
+"ifval (Bc2 v) s = v" |
+"ifval (If i1 i2 i3) s = (if (ifval i1 s) then (ifval i2 s) else (ifval i3 s))" |
+"ifval (Less2 a1 a2) s = (aval a1 s < aval a2 s)"
+
+fun b2ifexp :: "bexp \<Rightarrow> ifexp" where
+"b2ifexp (Bc v) = (Bc2 v)" |
+"b2ifexp (Not b) = (If (b2ifexp b) (Bc2 False) (Bc2 True))" |
+"b2ifexp (And b1 b2) = (If (b2ifexp b1) (
+                        (If (b2ifexp b2) (Bc2 True) (Bc2 False))
+                       ) (Bc2 False))" |
+"b2ifexp (Less a1 a2) = Less2 a1 a2"
+
+fun if2bexp :: "ifexp \<Rightarrow> bexp" where
+"if2bexp (Bc2 v) = (Bc v)" |
+"if2bexp (If i1 i2 i3) = Or (And (if2bexp i1) (if2bexp i2)) (And (Not (if2bexp i1)) (if2bexp i3))" |
+"if2bexp (Less2 a1 a2) = Less a1 a2"
+
+lemma ifval_b2ifexp: "ifval (b2ifexp b) s = bval b s"
+  apply(induction b)
+     apply(simp_all)
+  done
+
+lemma bval_if2bexp: "bval (if2bexp i) s = ifval i s"
+  apply(induction i)
+    apply(simp_all add: Or_def)
+  done
+
+(* Exercise 3.9. Define a new type of purely boolean expressions
+
+datatype pbexp = VAR vname | NOT pbexp | AND pbexp pbexp | OR pbexp pbexp
+
+where variables range over values of type bool:
+
+fun pbval :: "pbexp \<Rightarrow> (vname \<Rightarrow> bool) \<Rightarrow> bool" where
+"pbval (VAR x ) s = s x" |
+"pbval (NOT b) s = (\<not> pbval b s)" |
+"pbval (AND b 1 b 2 ) s = (pbval b1 s \<and> pbval b 2 s)" |
+"pbval (OR b 1 b 2 ) s = (pbval b1 s \<or> pbval b 2 s)"
+
+Define a function is_nnf :: pbexp \<Rightarrow> bool that checks whether a boolean
+expression is in NNF (negation normal form), i.e., if NOT is only applied
+directly to VARs. Also define a function nnf :: pbexp \<Rightarrow> pbexp that converts
+a pbexp into NNF by pushing NOT inwards as much as possible. Prove that
+nnf preserves the value (pbval (nnf b) s = pbval b s) and returns an NNF
+(is_nnf (nnf b)).
+An expression is in DNF (disjunctive normal form) if it is in NNF and if
+no OR occurs below an AND. Define a corresponding test is_dnf :: pbexp \<Rightarrow>
+bool. An NNF can be converted into a DNF in a bottom-up manner. The crit-
+ical case is the conversion of AND b 1 b 2 . Having converted b 1 and b 2 , apply
+distributivity of AND over OR. Define a conversion function dnf_of_nnf ::
+pbexp \<Rightarrow> pbexp from NNF to DNF. Prove that your function preserves the
+value (pbval (dnf_of_nnf b) s = pbval b s) and converts an NNF into a
+DNF (is_nnf b =\<Rightarrow> is_dnf (dnf_of_nnf b)). *)
+
+datatype pbexp = VAR vname | NOT pbexp | AND pbexp pbexp | OR pbexp pbexp
+
+fun pbval :: "pbexp \<Rightarrow> (vname \<Rightarrow> bool) \<Rightarrow> bool" where
+"pbval (VAR x) s = s x" |
+"pbval (NOT b) s = (\<not> pbval b s)" |
+"pbval (AND b1 b2 ) s = (pbval b1 s \<and> pbval b2 s)" |
+"pbval (OR b1 b2 ) s = (pbval b1 s \<or> pbval b2 s)"
+
+fun is_nnf :: "pbexp \<Rightarrow> bool" where
+"is_nnf (VAR x) = True" |
+"is_nnf (NOT (VAR x)) = True" |
+"is_nnf (NOT b) = False" |
+"is_nnf (AND b1 b2) = (is_nnf b1 \<and> is_nnf b2)" |
+"is_nnf (OR b1 b2) = (is_nnf b1 \<or> is_nnf b2)"
+
+fun nnf :: "pbexp \<Rightarrow> pbexp" where
+"nnf (VAR x) = (VAR x)" |
+"nnf (NOT (VAR x)) = (NOT (VAR x))" |
+"nnf (NOT (OR b1 b2)) = AND (nnf (NOT b1)) (nnf (NOT b2))" |
+"nnf (NOT (AND b1 b2)) = OR (nnf (NOT b1)) (nnf (NOT b2))" |
+"nnf (NOT (NOT b)) = nnf b" |
+"nnf (AND b1 b2) = AND (nnf b1) (nnf b2)" |
+"nnf (OR b1 b2) = OR (nnf b1) (nnf b2)"
+
+lemma ppbval_nnf [simp]: "pbval (nnf b) s = pbval b s"
+  apply(induction b arbitrary: s rule: nnf.induct)
+        apply(simp_all)
+  done
+
+lemma is_nnf_nnf: "is_nnf (nnf b)"
+  apply(induction b rule: nnf.induct)
+        apply(simp_all)
+  done
+
+fun is_dnf :: "pbexp \<Rightarrow> bool"  where
+"is_dnf (AND (OR _ _) _) = False" |
+"is_dnf (AND _ (OR _ _)) = False" |
+"is_dnf (AND b1 b2) = (is_dnf b1 \<and> is_dnf b2)" |
+"is_dnf (OR b1 b2) = (is_dnf b1 \<or> is_dnf b2)" |
+"is_dnf b = is_nnf b"
+
+(* Apply distributivity of AND over OR *)
+fun dnf_dist :: "pbexp \<Rightarrow> pbexp \<Rightarrow> pbexp" where
+"dnf_dist c (OR b1 b2) = OR (dnf_dist c b1) (dnf_dist c b2)" |
+"dnf_dist (OR b1 b2) c = OR (dnf_dist b1 c) (dnf_dist b2 c)" |
+"dnf_dist b1 b2 = AND b1 b2"
+
+fun dnf_of_nnf :: "pbexp \<Rightarrow> pbexp" where
+"dnf_of_nnf (VAR x) = (VAR x)" |
+"dnf_of_nnf (NOT x) = (NOT x)" |
+"dnf_of_nnf (AND b1 b2) = dnf_dist (dnf_of_nnf b1) (dnf_of_nnf b2)" |
+"dnf_of_nnf (OR b1 b2) = OR (dnf_of_nnf b1) (dnf_of_nnf b2)"
+
+lemma pbval_dnf_dist: "pbval (dnf_dist b1 b2) s = pbval (AND b1 b2) s"
+  apply(induction b1 b2 rule: dnf_dist.induct)
+              apply(auto)
+  done
+
+lemma is_dnf_dnf_dist: "is_dnf b1 \<and> is_dnf b2 \<Longrightarrow> is_dnf (dnf_dist b1 b2)"
+  apply(induction b1 b2 rule: dnf_dist.induct)
+              apply(auto)
+  done
+
+lemma pbval_dnf_of_nnf [simp]:  "(pbval (dnf_of_nnf b) s = pbval b s)"
+  apply(induction b rule:dnf_of_nnf.induct)
+     apply(simp_all add: pbval_dnf_dist)
+  done
+
+lemma is_dnf_dnf_of_nnf: "(is_nnf b ==> is_dnf (dnf_of_nnf b))"
+  apply(induction b rule:dnf_of_nnf.induct)
+     apply(auto simp add: is_dnf_dnf_dist)
+  done
 end
