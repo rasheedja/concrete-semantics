@@ -43,7 +43,7 @@ text_raw\<open>}%endsnip\<close>
 
 value "exec [LOADI 5, LOAD ''y'', ADD] <''x'' := 42, ''y'' := 43> [50]"
 
-lemma exec_append[simp]:
+lemma exec_append:
   "exec is1 s stk = Some stk2 \<Longrightarrow> exec (is1@is2) s stk = exec is2 s stk2"
   apply(induction is1 arbitrary: stk)
 apply (auto split: option.split)
@@ -63,7 +63,7 @@ value "comp (Plus (Plus (V ''x'') (N 1)) (V ''z''))"
 
 theorem exec_comp: "exec (comp a) s stk = Some (aval a s # stk)"
 apply(induction a arbitrary: stk)
-    apply (auto split: option.split)
+    apply (auto split: option.split simp: exec_append)
 done
 
 end

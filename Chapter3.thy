@@ -354,4 +354,100 @@ lemma is_dnf_dnf_of_nnf: "(is_nnf b ==> is_dnf (dnf_of_nnf b))"
   apply(induction b rule:dnf_of_nnf.induct)
      apply(auto simp add: is_dnf_dnf_dist)
   done
+
+(* Exercise 3.11. This exercise is about a register machine and compiler for
+aexp. The machine instructions are
+
+datatype instr = LDI int reg | LD vname reg | ADD reg reg
+
+where type reg is a synonym for nat. Instruction LDI i r loads i into register
+r, LD x r loads the value of x into register r, and ADD r 1 r 2 adds register
+r 2 to register r 1 .
+Define the execution of an instruction given a state and a register state
+(= function from registers to integers); the result is the new register state:
+
+fun exec1 :: instr \<Rightarrow> state \<Rightarrow> (reg \<Rightarrow> int ) \<Rightarrow> reg \<Rightarrow> int
+
+Define the execution exec of a list of instructions as for the stack machine.
+The compiler takes an arithmetic expression a and a register r and pro-
+duces a list of instructions whose execution places the value of a into r. The
+registers > r should be used in a stack-like fashion for intermediate results,
+the ones < r should be left alone. Define the compiler and prove it correct:
+t. *)
+
+type_synonym reg = nat
+
+datatype instr = LDI int reg | LD vname reg | ADD reg reg
+
+fun exec1 :: "instr \<Rightarrow> state \<Rightarrow> (reg \<Rightarrow> int) \<Rightarrow> reg \<Rightarrow> int" where
+"exec1 (LDI i r) _ rs = rs(r := i)" |
+"exec1 (LD v r) s rs = rs(r := s v)" |
+"exec1 (ADD r1 r2) _ rs = rs(r1 := rs r1 + rs r2)"
+
+fun exec :: "instr list \<Rightarrow> state \<Rightarrow> (reg \<Rightarrow> int) \<Rightarrow> reg \<Rightarrow> int" where
+"exec [] _ rs = rs" |
+"exec (i#is) s rs = exec is s (exec1 i s rs)"
+
+lemma reg_exec_append: "exec (is1@is2) s rs = exec is2 s (exec is1 s rs)"
+  apply(induction is1 arbitrary: rs)
+  apply(simp_all)
+done
+
+fun comp :: "aexp \<Rightarrow> reg \<Rightarrow> instr list" where
+"comp (N n) r = [LDI n r]" |
+"comp (V v) r = [LD v r]" |
+"comp (Plus a1 a2) r = comp a1 r @ comp a2 (r+1) @ [ADD r (r+1)]"
+
+lemma reg_exec_order: "r2 > r1 \<Longrightarrow> exec (comp a r2) s rs r1 = rs r1"
+  apply(induction a arbitrary: r1 r2 rs)
+    apply(auto simp add: reg_exec_append)
+  done
+
+theorem "exec (comp a r) s rs r = aval a s"
+  apply(induction a arbitrary: r rs)
+    apply(auto simp add: reg_exec_append reg_exec_order)
+  done
+
+(* Exercise 3.12. This is a variation on the previous exercise. Let the instruc-
+tion set be
+
+datatype instr0 = LDI0 val | LD0 vname | MV0 reg | ADD0 reg
+
+All instructions refer implicitly to register 0 as the source (MV0) or target
+(all others). Define a compiler pretty much as explained above except that
+the compiled code leaves the value of the expression in register 0. Prove that
+exec (comp a r ) s rs 0 = aval a s. *)
+
+datatype instr0 = LDI0 val | LD0 vname | MV0 reg | ADD0 reg
+
+fun exec01 :: "instr0 \<Rightarrow> state \<Rightarrow> (reg \<Rightarrow> int) \<Rightarrow> reg \<Rightarrow> int" where
+"exec01 (LDI0 i) _ rs = rs(0 := i)" |
+"exec01 (LD0 v) s rs = rs(0 := s v)" |
+"exec01 (MV0 r) s rs = rs(r := rs 0)" |
+"exec01 (ADD0 r) _ rs = rs(0 := rs 0 + rs r)"
+
+fun exec0 :: "instr0 list \<Rightarrow> state \<Rightarrow> (reg \<Rightarrow> int) \<Rightarrow> reg \<Rightarrow> int" where
+"exec0 [] _ rs = rs" |
+"exec0 (i#is) s rs = exec0 is s (exec01 i s rs)"
+
+lemma reg0_exec_append: "exec0 (is1@is2) s rs = exec0 is2 s (exec0 is1 s rs)"
+  apply(induction is1 arbitrary: rs)
+  apply(simp_all)
+done
+
+fun comp0 :: "aexp \<Rightarrow> reg \<Rightarrow> instr0 list" where
+"comp0 (N n) _ = [LDI0 n]" |
+"comp0 (V v) _ = [LD0 v]" |
+"comp0 (Plus a1 a2) r = comp0 a1 r @ [MV0 (r+1)] @ comp0 a2 (r+1) @ [ADD0 (r+1)]"
+
+lemma reg0_exec_order: "(r1 \<noteq> 0 \<and> r2 \<ge> r1) \<Longrightarrow> exec0 (comp0 a r2) s rs r1 = rs r1"
+  apply(induction a arbitrary: r1 r2 rs)
+    apply(auto simp add: reg0_exec_append)
+  done
+
+theorem "exec0 (comp0 a r) s rs 0 = aval a s"
+  apply(induction a arbitrary: r rs)
+    apply(auto simp add: reg0_exec_append reg0_exec_order)
+  done
+
 end
