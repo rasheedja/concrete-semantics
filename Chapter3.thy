@@ -1,6 +1,6 @@
 theory Chapter3
-  imports Main
-          "~~/src/HOL/IMP/BExp"          
+  imports "~~/src/HOL/IMP/BExp"
+          "~~/src/HOL/IMP/ASM"          
 begin
 
 (* Exercise 3.1. To show that asimp_const really folds all subexpressions of

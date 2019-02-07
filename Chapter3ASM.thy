@@ -1,9 +1,14 @@
-theory Chapter3ASM
-imports "~~/src/HOL/IMP/AExp"
-
 section "Stack Machine and Compilation"
 
-theory ASM imports AExp begin
+(* Exercise 3.10. A stack underflow occurs when executing an ADD instruc-
+tion on a stack of size less than 2. In our semantics a term exec1 ADD s stk
+where length stk < 2 is simply some unspecified value, not an error or ex-
+ception — HOL does not have those concepts. Modify theory ASM such that
+stack underflow is modelled by None and normal execution by Some, i.e.,
+the execution functions have return type stack option. Modify all theorems
+and proofs accordingly. *)
+
+theory Chapter3ASM imports "~~/src/HOL/IMP/AExp" begin
 
 subsection "Stack Machine"
 
@@ -20,24 +25,28 @@ parsing and folded back again before printing. Internally, they do not
 exist.\<close>
 
 text_raw\<open>\snip{ASMexeconedef}{0}{1}{%\<close>
-fun exec1 :: "instr \<Rightarrow> state \<Rightarrow> stack \<Rightarrow> stack" where
-"exec1 (LOADI n) _ stk  =  n # stk" |
-"exec1 (LOAD x) s stk  =  s(x) # stk" |
-"exec1  ADD _ (j # i # stk)  =  (i + j) # stk"
+fun exec1 :: "instr \<Rightarrow> state \<Rightarrow> stack \<Rightarrow> stack option" where
+"exec1 (LOADI n) _ stk  = Some (n # stk)" |
+"exec1 (LOAD x) s stk  = Some (s(x) # stk)" |
+"exec1  ADD _ stk  = (case stk of
+                      (x # y # ys) \<Rightarrow> Some ((x + y) # ys) |
+                      (xs) \<Rightarrow> None)"
 text_raw\<open>}%endsnip\<close>
 
 text_raw\<open>\snip{ASMexecdef}{1}{2}{%\<close>
-fun exec :: "instr list \<Rightarrow> state \<Rightarrow> stack \<Rightarrow> stack" where
-"exec [] _ stk = stk" |
-"exec (i#is) s stk = exec is s (exec1 i s stk)"
+fun exec :: "instr list \<Rightarrow> state \<Rightarrow> stack \<Rightarrow> stack option" where
+"exec [] _ stk = (Some stk)" |
+"exec (i#is) s stk = (case exec1 i s stk of
+                      Some stk2 \<Rightarrow> exec is s stk2 |
+                      None \<Rightarrow> None)"
 text_raw\<open>}%endsnip\<close>
 
 value "exec [LOADI 5, LOAD ''y'', ADD] <''x'' := 42, ''y'' := 43> [50]"
 
 lemma exec_append[simp]:
-  "exec (is1@is2) s stk = exec is2 s (exec is1 s stk)"
-apply(induction is1 arbitrary: stk)
-apply (auto)
+  "exec is1 s stk = Some stk2 \<Longrightarrow> exec (is1@is2) s stk = exec is2 s stk2"
+  apply(induction is1 arbitrary: stk)
+apply (auto split: option.split)
 done
 
 
@@ -52,10 +61,9 @@ text_raw\<open>}%endsnip\<close>
 
 value "comp (Plus (Plus (V ''x'') (N 1)) (V ''z''))"
 
-theorem exec_comp: "exec (comp a) s stk = aval a s # stk"
+theorem exec_comp: "exec (comp a) s stk = Some (aval a s # stk)"
 apply(induction a arbitrary: stk)
-apply (auto)
+    apply (auto split: option.split)
 done
 
 end
-
